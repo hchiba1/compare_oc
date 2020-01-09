@@ -111,9 +111,13 @@ for my $cluster (keys %CLUSTER_MEMBER) {
     }
     
     my %count_corresp = ();
+    my $corresp_cluster_one = "";
     for my $member (@{$CLUSTER_MEMBER{$cluster}}) {
 	if ($GET_CLUSTER{$member}) {
 	    my @corresp_cluster = @{$GET_CLUSTER{$member}};
+        if (@corresp_cluster == 1) {
+            $corresp_cluster_one = $corresp_cluster[0]
+        }
 	    for my $corresp_cluster (@corresp_cluster) {
 		$count_corresp{$corresp_cluster}++;
 	    }
@@ -126,7 +130,7 @@ for my $cluster (keys %CLUSTER_MEMBER) {
 	push @ratio, $ratio;
     }
 
-    print "$cluster\t$PREV_CLUSTER_SIZE{$cluster}\t", max(@ratio), "\n";
+    print "$cluster\t$PREV_CLUSTER_SIZE{$cluster}\t", max(@ratio), "\t$corresp_cluster_one\n";
 }
 
 ################################################################################
