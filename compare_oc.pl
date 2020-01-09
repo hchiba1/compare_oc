@@ -4,7 +4,7 @@ use File::Basename;
 use Getopt::Std;
 my $PROGRAM = basename $0;
 my $USAGE=
-"Usage: $PROGRAM [-t THRESHOLD]
+"Usage: $PROGRAM [-t THRESHOLD] PREV_FILE NEW_FILE
 ";
 
 my %OPT;
@@ -15,13 +15,51 @@ if ($OPT{t}) {
     $THRESHOLD = $OPT{t};
 }
 
+### Arguments
 my $PREV_FILE = $ARGV[0];
 my $NEW_FILE = $ARGV[1];
 
+### Read new file
+my %GET_CLUSTER = ();
+
+open(NEW, "$NEW_FILE") || die;
+while (<NEW>) {
+    chomp;
+    my @f = split("\t", $_);
+
+    my $def = pop(@f);
+    my $gene = pop(@f);
+
+    if ($gene !~ /^(\w+):\S+$/) {
+	print STDERR $gene, "\n";
+    }
+
+    my $para = pop(@f);
+    if ($para !~ /^[a-z]+.\d+$/) {
+	print STDERR $para, "\n";
+    }
+
+    for (my $i=0; $i<1; $i++) {
+    	my $cluster = $f[$i];
+    	if ($cluster !~ /^[A-Z]\w+.\d+$/) {
+    	    print STDERR $cluster, "\n";
+    	}
+
+	if ($GET_CLUSTER{$gene}) {
+	    push @{$GET_CLUSTER{$gene}}, $cluster;
+	} else {
+	    $GET_CLUSTER{$gene} = [$cluster];
+	}
+    }
+}
+close(NEW);
+
+print STDERR "file2 read.\n";
+
+### Read PREV_FILE
 my %CLUSTER_MEMBER = ();
 my %PREV_CLUSTER_SIZE = ();
 
-# !@ARGV && -t and die $USAGE;
 open(PREV, "$PREV_FILE") || die;
 while (<PREV>) {
     chomp;
@@ -29,20 +67,28 @@ while (<PREV>) {
 
     my $def = pop(@f);
     my $gene = pop(@f);
+
     if ($gene !~ /^\w+:\S+$/) {
-	print $gene, "\n";
+	print STDERR $gene, "\n";
     }
 
     my $para = pop(@f);
     if ($para !~ /^[a-z]+.\d+$/) {
-	print $para, "\n";
+	print STDERR $para, "\n";
     }
 
-    # for (my $i=0; $i<@f; $i++) {
+    ### Check if previous genes exist in the new dataset
+    if ($GET_CLUSTER{$gene}) {
+	# print STDERR "found $gene\n";
+    } else {
+	next;
+	# print STDERR "cannot find $gene\n";
+    }
+
     for (my $i=0; $i<1; $i++) {
     	my $cluster = $f[$i];
     	if ($cluster !~ /^[A-Z]\w+.\d+$/) {
-    	    print $cluster, "\n";
+    	    print STDERR $cluster, "\n";
     	}
 
 	if ($CLUSTER_MEMBER{$cluster}) {
@@ -56,56 +102,16 @@ while (<PREV>) {
 }
 close(PREV);
 
-my %GET_CLUSTER = ();
-my %NEW_CLUSTER_SIZE = ();
+print STDERR "file1 read.\n";
 
-open(NEW, "$NEW_FILE") || die;
-while (<NEW>) {
-    chomp;
-    my @f = split("\t", $_);
-
-    my $def = pop(@f);
-    my $gene = pop(@f);
-    if ($gene !~ /^\w+:\S+$/) {
-	print $gene, "\n";
-    }
-
-    my $para = pop(@f);
-    if ($para !~ /^[a-z]+.\d+$/) {
-	print $para, "\n";
-    }
-
-    # for (my $i=0; $i<@f; $i++) {
-    for (my $i=0; $i<1; $i++) {
-    	my $cluster = $f[$i];
-    	if ($cluster !~ /^[A-Z]\w+.\d+$/) {
-    	    print $cluster, "\n";
-    	}
-
-	if ($GET_CLUSTER{$gene}) {
-	    push @{$GET_CLUSTER{$gene}}, $cluster;
-	} else {
-	    $GET_CLUSTER{$gene} = [$cluster];
-	}
-
-	$NEW_CLUSTER_SIZE{$cluster} ++;
-    }
-}
-close(NEW);
-
+### Count corresponding genes
 for my $cluster (keys %CLUSTER_MEMBER) {
-    my @member = @{$CLUSTER_MEMBER{$cluster}};
-    my $size = @member;
-
-    if ($size < $THRESHOLD) {
+    if ($PREV_CLUSTER_SIZE{$cluster} < $THRESHOLD) {
 	next;
     }
-
-    print "$cluster\t$size";
-    # print "$cluster ($size) $PREV_CLUSTER_SIZE{$cluster}\n";
     
     my %count_corresp = ();
-    for my $member (@member) {
+    for my $member (@{$CLUSTER_MEMBER{$cluster}}) {
 	if ($GET_CLUSTER{$member}) {
 	    my @corresp_cluster = @{$GET_CLUSTER{$member}};
 	    for my $corresp_cluster (@corresp_cluster) {
@@ -116,14 +122,11 @@ for my $cluster (keys %CLUSTER_MEMBER) {
 
     my @ratio = ();
     for my $corresp_cluster (keys %count_corresp) {
-	# print " $corresp_cluster ($NEW_CLUSTER_SIZE{$corresp_cluster}) ";
-	# print "$count_corresp{$corresp_cluster} ";
-	my $ratio = $count_corresp{$corresp_cluster}/$size;
+	my $ratio = $count_corresp{$corresp_cluster}/$PREV_CLUSTER_SIZE{$cluster};
 	push @ratio, $ratio;
-	# print "\n";
     }
-    # print " @ratio\n";
-    print "\t", max(@ratio), "\n";
+
+    print "$cluster\t$PREV_CLUSTER_SIZE{$cluster}\t", max(@ratio), "\n";
 }
 
 ################################################################################
